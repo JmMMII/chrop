@@ -102,7 +102,7 @@ class DiseNo:
         self.multiplicar_p(1-p)
         self.puntos.append(self.Punto(x,p))
 
-    def quitar(self, i):
+    def quitar(self, i : int):
         """
         Elimina el punto en la posición i.
 
@@ -112,7 +112,7 @@ class DiseNo:
         self.puntos.pop(i)
 
     #Ver que valores le asigno a cada uno
-    def refinar(self, m, cercania = 0.001, pmin = 0.001):
+    def refinar(self, m : int, cercania : float = 0.001, pmin : float = 0.001):
         """
         Refina el diseño fusionando puntos cercanos y eliminando puntos con peso bajo.
         Garantiza al menos m puntos en el diseño.
@@ -167,7 +167,7 @@ class DiseNo:
         self.puntos = sorted(buenos, key=lambda punto: punto.x)
 
 # Función que separa los términos del modelo
-def terminos(modelo, var : sp.Symbol) -> list[sp.Expr]:
+def terminos(modelo : str, var : sp.Symbol) -> list[sp.Expr]:
     """
     Separa los términos simbólicos de un modelo en función de la variable dada.
 
@@ -291,7 +291,7 @@ def gradiente_caracteristico(M : sp.Matrix, k : int):
         i += 1
     return signo * gradiente
 
-def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, intervalo : tuple, subintervalos = None, cercania = None, pmin = None) -> sp.Matrix:
+def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, intervalo : tuple, subintervalos : tuple = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> sp.Matrix:
     """
     Optimiza el diseño experimental para un modelo dado utilizando el criterio D-óptimo.
     Args:
@@ -303,6 +303,7 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
         subintervalos (int, optional): Número de subintervalos para la búsqueda local en cada iteración. Por defecto es 3.
         cercania (float, optional): Parámetro de cercanía para el refinamiento del diseño. Por defecto es (intervalo[1] - intervalo[0])/25.
         pmin (float, optional): Probabilidad mínima permitida para los puntos del diseño. Por defecto es 0.05.
+        grafico (bool, optional): Si se debe mostrar el gráfico de la función. Por defecto es False.
 
         Returns:
         sp.Matrix: Matriz que representa el diseño experimental optimizado.
@@ -333,6 +334,9 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
     if pmin is None:
         # pmin = 1 / (f_x.shape[0]*(f_x.shape[0] + 1) / 2) #Teorema de caratheodory
         pmin = 0.05
+
+    if nrefinar is None:
+        nrefinar = 20
 
     matInfo = matInf(diseNo, modelo, symb)
     
@@ -379,14 +383,18 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
 
         diseNo.aNadir(xn, beta)
 
-        if i%20==0:
-            print("formula ", sp.sympify(formula))
-            print("Punto nuevo es: ", res.x)
-            X = np.linspace(intervalo[0], intervalo[1], 300)
-            Y = [funcion_a_maximizar_neg(val) for val in X]
+        if i%nrefinar==0:
+            # Mostrar la función en caso de indicarlo
+            if grafico:
+                X = np.linspace(intervalo[0], intervalo[1], 300)
+                Y = [funcion_a_maximizar_neg(val) for val in X]
 
-            plt.plot(X,Y)
-            plt.show()
+                fig, ax = plt.subplots()
+                ax.plot(X, Y)
+                def cerrar(event):
+                    plt.close(fig)
+                fig.canvas.mpl_connect('key_press_event', cerrar)
+                plt.show()
             diseNo.refinar(m, cercania, pmin)
 
         # Calculamos la matriz de información inversa del diseño resultante
@@ -396,7 +404,7 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
     diseNo.refinar(m, cercania, pmin)
     return diseNo
 
-def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones : int, intervalo : tuple, subintervalos = None, cercania = None, pmin = None) -> sp.Matrix:
+def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones : int, intervalo : tuple, subintervalos : int = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> sp.Matrix:
     """
     Optimiza el diseño experimental para un modelo dado utilizando el criterio de gradiente característico.
 
@@ -410,6 +418,7 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
         subintervalos (int, optional): Número de subintervalos para la búsqueda local en cada iteración. Por defecto es 3.
         cercania (float, optional): Parámetro de cercanía para el refinamiento del diseño. Por defecto es (intervalo[1] - intervalo[0])/25.
         pmin (float, optional): Probabilidad mínima permitida para los puntos del diseño. Por defecto es 0.05.
+        grafico (bool, optional): Si se debe mostrar el gráfico de la función. Por defecto es False.
 
     Returns:
         DiseNo: Diseño experimental optimizado.
@@ -441,6 +450,9 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
     if pmin is None:
         # pmin = 1 / (f_x.shape[0]*(f_x.shape[0] + 1) / 2) #Teorema de caratheodory
         pmin = 0.05
+
+    if nrefinar is None:
+        nrefinar = 20
     
     while i<iteraciones:
         i+=1
@@ -479,14 +491,17 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
         # Añadimos el punto calculado al diseño
         diseNo.aNadir(xn, 1/(2+i))
         
-        if i%20==0:
-            print("formula ", sp.sympify(formula))
-            print("Punto nuevo es: ", res.x)
-            X = np.linspace(intervalo[0], intervalo[1], 300)
-            Y = [funcion_a_minimizar(val) for val in X]
+        if i%nrefinar==0:
+            if grafico:
+                X = np.linspace(intervalo[0], intervalo[1], 300)
+                Y = [funcion_a_minimizar(val) for val in X]
 
-            plt.plot(X,Y)
-            plt.show()
+                fig, ax = plt.subplots()
+                ax.plot(X, Y)
+                def cerrar(event):
+                    plt.close(fig)
+                fig.canvas.mpl_connect('key_press_event', cerrar)
+                plt.show()
             diseNo.refinar(m, cercania, pmin)
 
     diseNo.refinar(m, cercania, pmin)
