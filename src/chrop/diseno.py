@@ -200,11 +200,11 @@ def funcion(f_vector: sp.Matrix, variable: sp.Symbol, valor: float) -> sp.Matrix
     Returns:
         sp.Matrix: Vector columna evaluado numéricamente.
     """
-    sustituciones = {variable: valor, sp.symbols('e'): np.e}
-    return f_vector.subs(sustituciones).evalf()
+    sustituciones = {variable: valor}
+    return np.matrix(f_vector.subs(sustituciones).evalf()).astype(np.float64)
 
 # Función para calcular la matriz de información del modelo
-def matInf(diseNo : DiseNo, modelo : str, variable : sp.Symbol) -> sp.Matrix:
+def matInf(diseNo : DiseNo, modelo : str, variable : sp.Symbol) -> np.matrix:
     """
     Calcula la matriz de información de Fisher para un diseño y modelo dados.
 
@@ -214,21 +214,22 @@ def matInf(diseNo : DiseNo, modelo : str, variable : sp.Symbol) -> sp.Matrix:
         variable (sp.Symbol): Variable simbólica del modelo.
 
     Returns:
-        sp.Matrix: Matriz de información de Fisher.
+        np.Matrix: Matriz de información de Fisher.
     """
     f_x = sp.sympify(terminos(modelo,variable))
-    matriz_Info = sp.zeros(len(f_x),len(f_x))
+    matriz_Info = np.matrix(np.zeros((len(f_x),len(f_x))))
     for punto in diseNo.puntos:
         f_val = funcion(f_x, variable, punto.x)
-        matriz_Info += punto.p * (f_val * f_val.T)
+        matriz_Info += punto.p * (f_val @ f_val.T)
     return matriz_Info
 
-def funcion_simetrica(M : sp.Matrix, k : int):
+def funcion_simetrica(M: np.matrix, k: int) -> float:
     """
-    Calcula la suma de los determinantes de todas las submatrices principales de orden k de M.
+    Calcula la suma de los determinantes de todas las submatrices principales
+    de orden k de M (versión con numpy).
 
     Args:
-        M (sp.Matrix): Matriz cuadrada.
+        M (np.matrix): Matriz cuadrada.
         k (int): Orden de las submatrices.
 
     Returns:
@@ -238,34 +239,37 @@ def funcion_simetrica(M : sp.Matrix, k : int):
         ValueError: Si k no cumple 0 < k <= m.
     """
     if k == 0:
-        return 1
+        return 1.0
     
     m = M.shape[0]
 
     if not (0 < k <= m):
         raise ValueError("El parámetro k debe cumplir 0 < k <= m")
     
-    suma = 0
+    suma = 0.0
     for indices in itertools.combinations(range(m), k):
-        submatriz = M.extract(indices, indices)
-        suma += submatriz.det()
-    return suma
+        # Submatriz principal con filas y columnas en 'indices'
+        submatriz = M[np.ix_(indices, indices)]
+        # Determinante con numpy.linalg.det
+        suma += np.linalg.det(submatriz)
+    
+    return float(suma)
 
-def gradiente_caracteristico(M : sp.Matrix, k : int):
+def gradiente_caracteristico(M : np.matrix, k : int):
     """
     Calcula el gradiente característico de la matriz M para el parámetro k.
 
     Args:
-        M (sp.Matrix): Matriz cuadrada.
+        M (np.matrix): Matriz cuadrada.
         k (int): Parámetro de gradiente.
 
     Returns:
-        sp.Matrix: Matriz del gradiente característico.
+        np.matrix: Matriz del gradiente característico.
 
     Raises:
         ValueError: Si la matriz no es invertible o k no cumple 0 < k <= m.
     """
-    if M.det() == 0:
+    if np.linalg.det(M) == 0:
         raise ValueError("La matriz no tiene inversa.")
 
     m = M.shape[0]
@@ -273,7 +277,7 @@ def gradiente_caracteristico(M : sp.Matrix, k : int):
     if not (0 < k <= m):
         raise ValueError("El parámetro k debe cumplir 0 < k <= m")
 
-    detInv = 1/M.det()
+    detInv = 1/np.linalg.det(M)
 
     if k >= m/2:
         tope = m
@@ -284,14 +288,14 @@ def gradiente_caracteristico(M : sp.Matrix, k : int):
         i = 0
         signo = -1
 
-    gradiente = sp.zeros(m,m)
+    gradiente = np.matrix(np.zeros((m,m)))
 
     while i <= tope:
         gradiente += detInv*funcion_simetrica(M,m-i)*(-M)**(i-k-1)
         i += 1
     return signo * gradiente
 
-def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, intervalo : tuple, subintervalos : tuple = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> sp.Matrix:
+def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, intervalo : tuple, subintervalos : tuple = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> DiseNo:
     """
     Optimiza el diseño experimental para un modelo dado utilizando el criterio D-óptimo.
     Args:
@@ -340,20 +344,19 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
 
     matInfo = matInf(diseNo, modelo, symb)
     
-    if matInfo.det() == 0:
+    if np.linalg.det(matInfo) == 0:
         raise ValueError("La matriz de información no tiene inversa")
-    
-    matInfoInv = matInfo.inv()
+
+    matInfoInv = np.linalg.inv(matInfo)
 
     while i<iteraciones:
         i+=1
 
-        formula = (f_x.T * matInfoInv * f_x)[0]
-        
-        #TODO Añadir constantes
+        formula = (f_x.T @ matInfoInv @ f_x)[0]
+
         #Invertimos el signo de la fórmula para que a la hora de calcular el mínimo se calcule el máximo
         def funcion_a_maximizar_neg(valor):
-            return -float(formula.subs({symb : valor, sp.symbols('e'): np.e}).evalf())
+            return -float(formula.subs({symb : valor}).evalf())
 
         # Distancia de cada subintervalo
         paso = (intervalo[1] - intervalo[0]) / subintervalos
@@ -399,12 +402,12 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
 
         # Calculamos la matriz de información inversa del diseño resultante
         f_valor = funcion(f_x, sp.symbols('x'), xn)
-        matInfoInv = (1/(1-beta))*(matInfoInv-(beta*matInfoInv*f_valor*f_valor.T*matInfoInv)/(1-beta+beta*(f_valor.T*matInfoInv*f_valor)[0]))
+        matInfoInv = (1/(1-beta))*(matInfoInv-(beta*matInfoInv@f_valor@f_valor.T@matInfoInv)/(1-beta+beta*(f_valor.T@matInfoInv@f_valor)[0]))
 
     diseNo.refinar(m, cercania, pmin)
     return diseNo
 
-def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones : int, intervalo : tuple, subintervalos : int = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> sp.Matrix:
+def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones : int, intervalo : tuple, subintervalos : int = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> DiseNo:
     """
     Optimiza el diseño experimental para un modelo dado utilizando el criterio de gradiente característico.
 
@@ -457,16 +460,15 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
     while i<iteraciones:
         i+=1
         matInfo = matInf(diseNo, modelo, symb)
-        if matInfo.det() == 0:
+        if np.linalg.det(matInfo) == 0:
             raise ValueError("La matriz de información no tiene inversa")
 
         gradiente = gradiente_caracteristico(matInfo, k)
 
-        formula = (f_x.T * gradiente * f_x)[0]
+        formula = (f_x.T @ gradiente @ f_x)[0]
         
-        #TODO Añadir constantes
         def funcion_a_minimizar(valor):
-            return float(formula.subs({symb : valor, sp.symbols('e'): np.e}).evalf())
+            return float(formula.subs({symb : valor}).evalf())
 
         # Distancia de cada subintervalo
         paso = (intervalo[1] - intervalo[0]) / subintervalos
