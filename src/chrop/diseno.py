@@ -50,7 +50,7 @@ class DiseNo:
             Returns:
                 str: Cadena con formato "x : p".
             """
-            return f"{self.x} : {self.p}"
+            return f"Punto {self.x} : Peso {self.p}"
 
     def __init__(self, puntos : list[tuple[float,float]]):
         """
@@ -79,7 +79,12 @@ class DiseNo:
         Returns:
             str: Cadena con todos los puntos y pesos.
         """
-        return "\n".join(f"{punto.x} : {punto.p}" for punto in self.puntos)
+        cabecera = f"{'Punto':<6}{'x':<12}{'p':<12}"
+        separador = "-" * len(cabecera)
+        rows = []
+        for i, punto in enumerate(self.puntos, 1):
+            rows.append(f"{i:<6}{punto.x:<12.6f}{punto.p:<12.6f}")
+        return "\n".join([cabecera, separador] + rows)
 
     def multiplicar_p(self, num : float):
         """
