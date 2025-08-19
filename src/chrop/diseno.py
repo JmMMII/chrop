@@ -50,7 +50,7 @@ class DiseNo:
             Returns:
                 str: Cadena con formato "x : p".
             """
-            return f"Punto {self.x} : Peso {self.p}"
+            return f"Coordenada {self.x} : Peso {self.p}"
 
     def __init__(self, puntos : list[tuple[float,float]]):
         """
@@ -513,3 +513,4 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
 
     diseNo.refinar(m, cercania, pmin)
     return diseNo
+
