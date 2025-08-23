@@ -1,2 +1,1 @@
 # chrop
-Diseño de experimentos
