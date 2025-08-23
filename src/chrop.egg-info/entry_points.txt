@@ -1,0 +1,2 @@
+[console_scripts]
+chrop = chrop.__main__:main

@@ -60,8 +60,13 @@ class DiseNo:
             puntos (list[tuple[float, float]]): Lista de tuplas (coordenada, peso).
         """
         self.puntos = list()
+        aux = 0
         for x,p in puntos:
             self.puntos.append(self.Punto(x,p))
+            aux += p
+
+        if not abs(aux - 1.0) < 1e-9:
+            raise ValueError(f"La suma de los pesos debe ser 1")
 
     def copia(self):
         """
@@ -114,7 +119,10 @@ class DiseNo:
         Args:
             i (int): Índice del punto a eliminar.
         """
-        self.puntos.pop(i)
+        if 0 <= i-1 < len(self.puntos):
+            self.puntos.pop(i-1)
+        else:
+            raise IndexError("Índice fuera de rango")
 
     #Ver que valores le asigno a cada uno
     def refinar(self, m : int, cercania : float = 0.001, pmin : float = 0.001):
@@ -135,7 +143,7 @@ class DiseNo:
         self.puntos.sort(key=lambda p: p.x)
         i = 0
         while i < len(self.puntos) - 1:
-            if abs(self.puntos[i].x - self.puntos[i+1].x) <= cercania:
+            if (self.puntos[i+1].x - self.puntos[i].x) <= cercania:
                 peso_total = self.puntos[i].p + self.puntos[i+1].p
                 x_fusion = (self.puntos[i].x * self.puntos[i].p + self.puntos[i+1].x * self.puntos[i+1].p) / peso_total
                 self.puntos[i].x = x_fusion
@@ -145,16 +153,15 @@ class DiseNo:
                 i += 1
 
         # Separar puntos por peso usando búsqueda binaria (lista ordenada por peso)
-        puntos_por_p = sorted(self.puntos, key=lambda punto: punto.p)  # ascendente por p
+        puntos_por_p = sorted(self.puntos, key=lambda punto: punto.p, reverse=True)  # ascendente por p
         pesos = [p.p for p in puntos_por_p]
         idx = bs.bisect_left(pesos, pmin)
 
-        quitar = puntos_por_p[:idx]    # objetos Punto con p < pmin
-        buenos = puntos_por_p[idx:]    # objetos Punto con p >= pmin
+        quitar = puntos_por_p[idx:]    # objetos Punto con p < pmin
+        buenos = puntos_por_p[:idx]    # objetos Punto con p >= pmin
 
         # Si hay menos de m puntos en buenos, restaurar los de mayor peso desde 'quitar'
         if len(buenos) < m:
-            quitar.sort(key=lambda p: p.p, reverse=True)
             while len(buenos) < m and quitar:
                 buenos.append(quitar.pop(0))
             if len(buenos) < m:
@@ -168,7 +175,7 @@ class DiseNo:
             raise ValueError("Peso total retirado >= 1, no se puede normalizar")
         for punto in buenos:
             punto.p /= denom
-
+        
         self.puntos = sorted(buenos, key=lambda punto: punto.x)
 
 # Función que separa los términos del modelo
@@ -205,8 +212,7 @@ def funcion(f_vector: sp.Matrix, variable: sp.Symbol, valor: float) -> sp.Matrix
     Returns:
         sp.Matrix: Vector columna evaluado numéricamente.
     """
-    sustituciones = {variable: valor}
-    return np.matrix(f_vector.subs(sustituciones).evalf()).astype(np.float64)
+    return np.matrix(f_vector.subs({variable: valor}).evalf()).astype(np.float64)
 
 # Función para calcular la matriz de información del modelo
 def matInf(diseNo : DiseNo, modelo : str, variable : sp.Symbol) -> np.matrix:
@@ -300,7 +306,7 @@ def gradiente_caracteristico(M : np.matrix, k : int):
         i += 1
     return signo * gradiente
 
-def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, intervalo : tuple, subintervalos : tuple = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> DiseNo:
+def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, intervalo : tuple, subintervalos : int = None, cercania : float = None, pmin : float = None, nrefinar : int = None, grafico : bool = False) -> DiseNo:
     """
     Optimiza el diseño experimental para un modelo dado utilizando el criterio D-óptimo.
     Args:
@@ -351,6 +357,10 @@ def optimoD(diseNo0 : DiseNo, modelo : str, variable : str, iteraciones : int, i
     
     if np.linalg.det(matInfo) == 0:
         raise ValueError("La matriz de información no tiene inversa")
+
+    if subintervalos < 0 or cercania < 0 or pmin < 0 or nrefinar < 0:
+        raise ValueError("Los parámetros subintervalos, cercania, pmin y nrefinar deben ser mayores o iguales a 0.")
+
 
     matInfoInv = np.linalg.inv(matInfo)
 
@@ -461,7 +471,10 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
 
     if nrefinar is None:
         nrefinar = 20
-    
+
+    if subintervalos < 0 or cercania < 0 or pmin < 0 or nrefinar < 0:
+        raise ValueError("Los parámetros subintervalos, cercania, pmin y nrefinar deben ser mayores o iguales a 0.")
+
     while i<iteraciones:
         i+=1
         matInfo = matInf(diseNo, modelo, symb)
@@ -513,4 +526,3 @@ def optimo(diseNo0 : DiseNo, modelo : str, variable : str, k : int, iteraciones 
 
     diseNo.refinar(m, cercania, pmin)
     return diseNo
-

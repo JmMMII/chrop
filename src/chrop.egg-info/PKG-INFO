@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: chrop
+Version: 1.0.0
+Summary: Herramientas de diseño óptimo y matrices de información.
+Author: Jiaming He Wu
+Project-URL: Homepage, https://github.com/JmMMII/chrop
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.23
+Requires-Dist: sympy>=1.12
+Requires-Dist: scipy>=1.10
+Requires-Dist: matplotlib>=3.7

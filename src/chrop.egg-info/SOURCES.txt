@@ -1,0 +1,10 @@
+pyproject.toml
+src/chrop/__init__.py
+src/chrop/__main__.py
+src/chrop/diseno.py
+src/chrop.egg-info/PKG-INFO
+src/chrop.egg-info/SOURCES.txt
+src/chrop.egg-info/dependency_links.txt
+src/chrop.egg-info/entry_points.txt
+src/chrop.egg-info/requires.txt
+src/chrop.egg-info/top_level.txt
